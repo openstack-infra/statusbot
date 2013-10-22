@@ -1,6 +1,6 @@
 .tox
 build/*
 *.pyc
-*.egg-info/
+*.egg*
 AUTHORS
 ChangeLog
