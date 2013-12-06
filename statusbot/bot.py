@@ -56,16 +56,16 @@ except:
 
 class UpdateInterface(object):
     def alert(self, msg=None):
-        raise NotImplementedError()
+        pass
 
     def notice(self, msg=None):
-        raise NotImplementedError()
+        pass
 
     def log(self, msg=None):
-        raise NotImplementedError()
+        pass
 
     def ok(self, msg=None):
-        raise NotImplementedError()
+        pass
 
 
 class StatusPage(UpdateInterface):
@@ -147,6 +147,30 @@ class StatusPage(UpdateInterface):
 
     def setAlert(self, current_alert):
         self.current_alert = current_alert
+
+
+class AlertFile(UpdateInterface):
+    def __init__(self, config):
+        if config.has_section('alertfile'):
+            self.dir = config.get('alertfile', 'dir')
+            self.path = os.path.join(self.dir, 'alert.json')
+        else:
+            self.path = None
+        self.ok()
+
+    def write(self, msg):
+        if not self.path:
+            return
+        f, path = tempfile.mkstemp(dir=self.dir)
+        os.write(f, json.dumps(dict(alert=msg)))
+        os.close(f)
+        os.rename(path, self.path)
+
+    def alert(self, msg=None):
+        self.write(msg)
+
+    def ok(self, msg=None):
+        self.write(None)
 
 
 class StatusBot(irc.bot.SingleServerIRCBot):
@@ -319,7 +343,8 @@ def _main(configpath):
                 config.get('ircbot', 'channels').split(',')]
     nicks = [name.strip() for name in
              config.get('ircbot', 'nicks').split(',')]
-    publishers = [StatusPage(config)]
+    publishers = [StatusPage(config),
+                  AlertFile(config)]
 
     bot = StatusBot(channels, nicks, publishers,
                     config.get('ircbot', 'nick'),
