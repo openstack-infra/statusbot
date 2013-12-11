@@ -36,8 +36,10 @@ import argparse
 import ConfigParser
 import daemon
 import irc.bot
+import json
 import logging.config
 import os
+import tempfile
 import threading
 import time
 import simplemediawiki
