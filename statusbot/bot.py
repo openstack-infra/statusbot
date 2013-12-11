@@ -166,6 +166,7 @@ class AlertFile(UpdateInterface):
         f, path = tempfile.mkstemp(dir=self.dir)
         os.write(f, json.dumps(dict(alert=msg)))
         os.close(f)
+        os.chmod(path, 0o644)
         os.rename(path, self.path)
 
     def alert(self, msg=None):
