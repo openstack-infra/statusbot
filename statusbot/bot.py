@@ -56,6 +56,12 @@ except:
     pid_file_module = daemon.pidfile
 
 
+# https://bitbucket.org/jaraco/irc/issue/34/
+# irc-client-should-not-crash-on-failed
+# ^ This is why pep8 is a bad idea.
+irc.client.ServerConnection.buffer_class.errors = 'replace'
+
+
 class UpdateInterface(object):
     def alert(self, msg=None):
         pass
