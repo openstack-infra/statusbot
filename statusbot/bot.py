@@ -40,7 +40,6 @@ import json
 import logging.config
 import os
 import tempfile
-import threading
 import time
 import simplemediawiki
 import datetime
@@ -195,9 +194,8 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         self.nickname = nickname
         self.password = password
         self.identify_msg_cap = False
-        self.ignore_topics = True
-        self.topic_lock = threading.Lock()
         self.topics = {}
+        self.current_topic = None
         self.publishers = publishers
 
     def on_nicknameinuse(self, c, e):
@@ -245,96 +243,74 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             self.log.debug("Ignoring message from untrusted user %s" % nick)
             return
         try:
-            self.handle_command(nick, msg)
+            self.handle_command(e.target, nick, msg)
         except:
             self.log.exception("Exception handling command %s" % msg)
 
-    def handle_command(self, nick, msg):
+    def handle_command(self, channel, nick, msg):
         parts = msg.split()
         command = parts[1].lower()
         text = ' '.join(parts[2:])
 
         if command == 'alert':
             self.log.info("Processing alert from %s: %s" % (nick, text))
-            self.set_all_topics(text)
-            self.broadcast('NOTICE: ' + text)
+            self.send(channel, "%s: sending alert" % (nick,))
+            self.broadcast('NOTICE: ', text, set_topic=True)
             for p in self.publishers:
                 p.alert(text)
+            self.send(channel, "%s: finished sending alert" % (nick,))
         elif command == 'notice':
             self.log.info("Processing notice from %s: %s" % (nick, text))
-            self.broadcast('NOTICE: ' + text)
+            self.send(channel, "%s: sending notice" % (nick,))
+            self.broadcast('NOTICE: ', text)
             for p in self.publishers:
                 p.notice(text)
+            self.send(channel, "%s: finished sending notice" % (nick,))
         elif command == 'log':
             self.log.info("Processing log from %s: %s" % (nick, text))
             for p in self.publishers:
                 p.log(text)
+            self.send(channel, "%s: finished logging" % (nick,))
         elif command == 'ok':
             self.log.info("Processing ok from %s: %s" % (nick, text))
-            self.restore_all_topics()
-            if text:
-                self.broadcast('NOTICE: ' + text)
+            self.send(channel, "%s: sending ok" % (nick,))
+            self.broadcast('NOTICE: ', text, restore_topic=True)
             for p in self.publishers:
                 p.ok(text)
+            self.send(channel, "%s: finished sending ok" % (nick,))
         else:
+            self.send(channel, "%s: unknown command" % (nick,))
             self.log.info("Unknown command %s from %s: %s" % (
                     command, nick, msg))
 
-    def broadcast(self, msg):
+    def broadcast(self, prefix, msg, set_topic=False, restore_topic=False):
+        if set_topic:
+            self.current_topic = msg
         for channel in self.channel_list:
-            self.send(channel, msg)
-
-    def restore_all_topics(self):
-        t = threading.Thread(target=self._restore_all_topics, args=())
-        t.start()
-
-    def _restore_all_topics(self):
-        self.topic_lock.acquire()
-        try:
-            if self.topics:
-                for channel in self.channel_list:
-                    self.set_topic(channel, self.topics[channel])
-                self.topics = {}
-        finally:
-            self.topic_lock.release()
-
-    def set_all_topics(self, topic):
-        t = threading.Thread(target=self._set_all_topics, args=(topic,))
-        t.start()
-
-    def _set_all_topics(self, topic):
-        self.topic_lock.acquire()
-        try:
-            if not self.topics:
-                self.save_topics()
-            for channel in self.channel_list:
-                self.set_topic(channel, topic)
-        finally:
-            self.topic_lock.release()
-
-    def save_topics(self):
-        # Save all the current topics
-        self.ignore_topics = False
-        for channel in self.channel_list:
-            self.connection.topic(channel)
-            time.sleep(0.5)
-        start = time.time()
-        done = False
-        while time.time() < start + 300:
-            if len(self.topics) == len(self.channel_list):
-                done = True
-                break
-            time.sleep(0.5)
-        self.ignore_topics = True
-        if not done:
-            raise Exception("Unable to save topics")
+            if restore_topic:
+                # Set to the saved topic or just the channel name if
+                # we don't have a saved topic (to avoid leaving it as
+                # the alert).
+                t = self.topics.get(channel, channel)
+                self.set_topic(channel, t)
+            if msg:
+                self.send(channel, prefix + msg)
+            if set_topic:
+                self.set_topic(channel, msg)
 
     def on_currenttopic(self, c, e):
-        if self.ignore_topics:
+        channel, topic = (e.arguments[0], e.arguments[1])
+        self.update_saved_topic(channel, topic)
+
+    def on_topic(self, c, e):
+        channel, topic = (e.target, e.arguments[0])
+        self.update_saved_topic(channel, topic)
+
+    def update_saved_topic(self, channel, topic):
+        if topic == self.current_topic:
             return
-        self.log.info("Current topic on %s is %s" % (e.arguments[0],
-                                                     e.arguments[1]))
-        self.topics[e.arguments[0]] = e.arguments[1]
+        self.log.info("Current topic on %s is %s" % (channel, topic))
+        self.topics[channel] = topic
 
     def send(self, channel, msg):
         self.connection.privmsg(channel, msg)
