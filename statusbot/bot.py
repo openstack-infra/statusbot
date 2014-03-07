@@ -219,6 +219,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         for channel in self.channel_list:
             self.log.info("Joining %s" % channel)
             c.join(channel)
+            time.sleep(0.5)
 
     def on_cap(self, c, e):
         self.log.debug("Received cap response %s" % repr(e.arguments))
@@ -331,6 +332,8 @@ class StatusBot(irc.bot.SingleServerIRCBot):
     def on_currenttopic(self, c, e):
         if self.ignore_topics:
             return
+        self.log.info("Current topic on %s is %s" % (e.arguments[0],
+                                                     e.arguments[1]))
         self.topics[e.arguments[0]] = e.arguments[1]
 
     def send(self, channel, msg):
@@ -338,7 +341,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         time.sleep(0.5)
 
     def set_topic(self, channel, topic):
-        self.connection.topic(channel, topic)
+        self.log.info("Setting topic on %s to %s" % (channel, topic))
         self.connection.privmsg('ChanServ', 'topic %s %s' % (channel, topic))
         time.sleep(0.5)
 
