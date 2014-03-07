@@ -44,6 +44,7 @@ import time
 import simplemediawiki
 import datetime
 import re
+import ssl
 
 try:
     import daemon.pidlockfile
@@ -186,9 +187,16 @@ class StatusBot(irc.bot.SingleServerIRCBot):
 
     def __init__(self, channels, nicks, publishers,
                  nickname, password, server, port=6667):
-        irc.bot.SingleServerIRCBot.__init__(self,
-                                           [(server, port)],
-                                           nickname, nickname)
+        if port == 6697:
+            factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
+            irc.bot.SingleServerIRCBot.__init__(self,
+                                                [(server, port)],
+                                                nickname, nickname,
+                                                connect_factory=factory)
+        else:
+            irc.bot.SingleServerIRCBot.__init__(self,
+                                                [(server, port)],
+                                                nickname, nickname)
         self.channel_list = channels
         self.nicks = nicks
         self.nickname = nickname
