@@ -60,6 +60,7 @@ except:
 # irc-client-should-not-crash-on-failed
 # ^ This is why pep8 is a bad idea.
 irc.client.ServerConnection.buffer_class.errors = 'replace'
+ANTI_FLOOD_SLEEP = 1
 
 
 class UpdateInterface(object):
@@ -212,7 +213,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         c.privmsg("nickserv", "identify %s " % self.password)
         c.privmsg("nickserv", "ghost %s %s" % (self.nickname, self.password))
         c.privmsg("nickserv", "release %s %s" % (self.nickname, self.password))
-        time.sleep(1)
+        time.sleep(ANTI_FLOOD_SLEEP)
         c.nick(self.nickname)
 
     def on_welcome(self, c, e):
@@ -225,7 +226,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         for channel in self.channel_list:
             self.log.info("Joining %s" % channel)
             c.join(channel)
-            time.sleep(0.5)
+            time.sleep(ANTI_FLOOD_SLEEP)
 
     def on_cap(self, c, e):
         self.log.debug("Received cap response %s" % repr(e.arguments))
@@ -322,12 +323,12 @@ class StatusBot(irc.bot.SingleServerIRCBot):
 
     def send(self, channel, msg):
         self.connection.privmsg(channel, msg)
-        time.sleep(0.5)
+        time.sleep(ANTI_FLOOD_SLEEP)
 
     def set_topic(self, channel, topic):
         self.log.info("Setting topic on %s to %s" % (channel, topic))
         self.connection.privmsg('ChanServ', 'topic %s %s' % (channel, topic))
-        time.sleep(0.5)
+        time.sleep(ANTI_FLOOD_SLEEP)
 
 
 def _main(configpath):
