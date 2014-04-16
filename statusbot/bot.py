@@ -60,7 +60,7 @@ except:
 # irc-client-should-not-crash-on-failed
 # ^ This is why pep8 is a bad idea.
 irc.client.ServerConnection.buffer_class.errors = 'replace'
-ANTI_FLOOD_SLEEP = 1
+ANTI_FLOOD_SLEEP = 2
 
 
 class UpdateInterface(object):
