@@ -303,7 +303,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
                 t = self.topics.get(channel, channel)
                 self.set_topic(channel, t)
             if msg:
-                self.send(channel, prefix + msg)
+                self.notice(channel, prefix + msg)
             if set_topic:
                 self.set_topic(channel, msg)
 
@@ -320,6 +320,10 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             return
         self.log.info("Current topic on %s is %s" % (channel, topic))
         self.topics[channel] = topic
+
+    def notice(self, channel, msg):
+        self.connection.notice(channel, msg)
+        time.sleep(ANTI_FLOOD_SLEEP)
 
     def send(self, channel, msg):
         self.connection.privmsg(channel, msg)
