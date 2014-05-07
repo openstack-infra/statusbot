@@ -353,8 +353,8 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             self.send(channel, "%s: finished sending ok" % (nick,))
         else:
             self.send(channel, "%s: unknown command" % (nick,))
-            self.log.info("Unknown command %s from %s: %s" % (
-                    command, nick, msg))
+            self.log.info(
+                "Unknown command %s from %s: %s" % (command, nick, msg))
 
     def broadcast(self, prefix, msg, set_topic=False, restore_topic=False):
         if set_topic:
