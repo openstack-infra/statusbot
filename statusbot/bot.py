@@ -34,6 +34,12 @@ successpageid=2434
 
 [irclogs]
 url=http://eavesdrop.example.com/irclogs/%(chan)s/%(chan)s.%(date)s.log.html
+
+[twitter]
+consumer_key=consumer_key
+consumer_secret=consumer_secret
+access_token_key=access_token
+access_token_secret=access_token_secret
 """
 
 import argparse
@@ -49,6 +55,8 @@ import simplemediawiki
 import datetime
 import re
 import ssl
+import textwrap
+import twitter
 import urllib
 
 try:
@@ -147,6 +155,43 @@ class UpdateInterface(object):
 
     def ok(self, msg=None):
         pass
+
+
+class Tweet(UpdateInterface):
+
+    def __init__(self, config):
+        self.consumer_key = config.get('twitter', 'consumer_key')
+        self.consumer_secret = config.get('twitter', 'consumer_secret')
+        self.access_token_key = config.get('twitter', 'access_token_key')
+        self.access_token_secret = config.get('twitter', 'access_token_secret')
+        self.api = twitter.Api(
+            consumer_key=self.consumer_key,
+            consumer_secret=self.consumer_secret,
+            access_token_key=self.access_token,
+            access_token_secret=self.access_token_secret)
+
+    def update(self, msg):
+        # Limit tweets to 120 characters to facilitate retweets
+        tweets = textwrap.wrap(msg, 120)
+        if len(tweets) == 1:
+            # Don't prefix statuses that fit
+            self.api.PostUpdate(tweets[0])
+        else:
+            for index in range(0, len(tweets)):
+                self.api.PostUpdate("{index}/{tweet}".format(
+                    index=index, tweet=tweets[index]))
+
+    def alert(self, msg=None):
+        self.update(msg)
+
+    def notice(self, msg=None):
+        self.update(msg)
+
+    def log(self, msg=None):
+        pass
+
+    def ok(self, msg=None):
+        self.update("Everything back to normal")
 
 
 class StatusPage(WikiPage, UpdateInterface):
@@ -411,6 +456,8 @@ def _main(configpath):
     publishers = [StatusPage(config),
                   AlertFile(config)]
     successlog = SuccessPage(config)
+    if config.has_section('twitter'):
+        publishers.append(Tweet(config))
 
     bot = StatusBot(channels, nicks, publishers, successlog,
                     config.get('ircbot', 'nick'),
