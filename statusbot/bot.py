@@ -26,7 +26,7 @@ channels=foo,bar
 nicks=alice,bob
 
 [wiki]
-user=StatusBot
+username=StatusBot
 password=password
 url=https://wiki.example.com/w/api.php
 pageid=1781
@@ -63,6 +63,43 @@ irc.client.ServerConnection.buffer_class.errors = 'replace'
 ANTI_FLOOD_SLEEP = 2
 
 
+class WikiPage(object):
+    def __init__(self, config):
+        self.url = config.get('wiki', 'url')
+        self.pageid = config.get('wiki', 'pageid')
+        self.username = config.get('wiki', 'username')
+        self.password = config.get('wiki', 'password')
+
+    def login(self):
+        self.wiki = simplemediawiki.MediaWiki(self.url)
+        self.wiki.login(self.username, self.password)
+
+    def load(self):
+        data = self.wiki.call(dict(action='query',
+                                   prop='revisions',
+                                   rvprop='content',
+                                   pageids=self.pageid,
+                                   format='json'))
+        return data['query']['pages'][str(self.pageid)]['revisions'][0]['*']
+
+    def timestamp(self, ts=None):
+        if not ts:
+            ts = datetime.datetime.now()
+        return ts.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def save(self, text):
+        data = self.wiki.call(dict(action='query',
+                                   prop='info',
+                                   pageids=self.pageid,
+                                   intoken='edit'))
+        token = data['query']['pages'][str(self.pageid)]['edittoken']
+        data = self.wiki.call(dict(action='edit',
+                                   pageid=self.pageid,
+                                   bot=True,
+                                   text=text,
+                                   token=token))
+
+
 class UpdateInterface(object):
     def alert(self, msg=None):
         pass
@@ -77,15 +114,12 @@ class UpdateInterface(object):
         pass
 
 
-class StatusPage(UpdateInterface):
+class StatusPage(WikiPage, UpdateInterface):
     alert_re = re.compile(r'{{CI Alert\|(.*?)}}')
     item_re = re.compile(r'^\* (.*)$')
 
     def __init__(self, config):
-        self.url = config.get('wiki', 'url')
-        self.pageid = config.get('wiki', 'pageid')
-        self.username = config.get('wiki', 'username')
-        self.password = config.get('wiki', 'password')
+        super(StatusPage, self).__init__(config)
         self.current_alert = None
         self.items = []
 
@@ -102,26 +136,20 @@ class StatusPage(UpdateInterface):
         self.update(clear_alert=True, msg=msg)
 
     def update(self, set_alert=None, clear_alert=None, msg=None):
-        self.wiki = simplemediawiki.MediaWiki(self.url)
-        self.wiki.login(self.username, self.password)
-        self.load()
+        self.login()
+        self.loadItems()
         if set_alert:
             self.setAlert(msg)
         if clear_alert:
             self.setAlert(None)
         if msg:
             self.addItem(msg)
-        self.save()
+        self.saveItems()
 
-    def load(self):
+    def loadItems(self):
         self.current_alert = None
         self.items = []
-        data = self.wiki.call(dict(action='query',
-                                   prop='revisions',
-                                   rvprop='content',
-                                   pageids=self.pageid,
-                                   format='json'))
-        text = data['query']['pages'][str(self.pageid)]['revisions'][0]['*']
+        text = self.load()
         for line in text.split('\n'):
             m = self.alert_re.match(line)
             if m:
@@ -130,28 +158,16 @@ class StatusPage(UpdateInterface):
             if m:
                 self.items.append(m.group(1))
 
-    def save(self):
+    def saveItems(self):
         text = ''
         if self.current_alert:
             text += '{{CI Alert|%s}}\n\n' % self.current_alert
         for item in self.items:
             text += '* %s\n' % item
-
-        data = self.wiki.call(dict(action='query',
-                                   prop='info',
-                                   pageids=self.pageid,
-                                   intoken='edit'))
-        token = data['query']['pages'][str(self.pageid)]['edittoken']
-        data = self.wiki.call(dict(action='edit',
-                                   pageid=self.pageid,
-                                   bot=True,
-                                   text=text,
-                                   token=token))
+        self.save(text)
 
     def addItem(self, item, ts=None):
-        if not ts:
-            ts = datetime.datetime.now()
-        text = '%s %s' % (ts.strftime("%Y-%m-%d %H:%M:%S UTC"), item)
+        text = '%s %s' % (self.timestamp(ts=ts), item)
         self.items.insert(0, text)
 
     def setAlert(self, current_alert):
@@ -252,11 +268,11 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             self.log.debug("Ignoring message from untrusted user %s" % nick)
             return
         try:
-            self.handle_command(e.target, nick, msg)
+            self.handle_status_command(e.target, nick, msg)
         except:
             self.log.exception("Exception handling command %s" % msg)
 
-    def handle_command(self, channel, nick, msg):
+    def handle_status_command(self, channel, nick, msg):
         parts = msg.split()
         command = parts[1].lower()
         text = ' '.join(parts[2:])
