@@ -30,6 +30,10 @@ username=StatusBot
 password=password
 url=https://wiki.example.com/w/api.php
 pageid=1781
+successpageid=2434
+
+[irclogs]
+url=http://eavesdrop.example.com/irclogs/%(chan)s/%(chan)s.%(date)s.log.html
 """
 
 import argparse
@@ -45,6 +49,7 @@ import simplemediawiki
 import datetime
 import re
 import ssl
+import urllib
 
 try:
     import daemon.pidlockfile
@@ -98,6 +103,36 @@ class WikiPage(object):
                                    bot=True,
                                    text=text,
                                    token=token))
+
+
+class SuccessPage(WikiPage):
+    def __init__(self, config):
+        super(SuccessPage, self).__init__(config)
+        if config.has_option('wiki', 'successpageid'):
+            self.pageid = config.get('wiki', 'successpageid')
+        else:
+            self.pageid = None
+        if config.has_option('irclogs', 'url'):
+            self.irclogs_url = config.get('irclogs', 'url')
+        else:
+            self.irclogs_url = None
+
+    def log(self, channel, nick, msg):
+        if self.pageid:
+            self.login()
+            ts = self.timestamp()
+            if self.irclogs_url:
+                url = self.irclogs_url % {
+                    'chan': urllib.quote(channel),
+                    'date': ts[0:10]}
+                onchan = "[%s %s]" % (url, channel)
+            else:
+                onchan = channel
+            data = self.load()
+            current = data.split("\n")
+            newtext = "%s\n|-\n| %s || %s (on %s) || %s\n%s" % (
+                current[0], ts, nick, onchan, msg, '\n'.join(current[1:]))
+            self.save(newtext)
 
 
 class UpdateInterface(object):
@@ -202,7 +237,7 @@ class AlertFile(UpdateInterface):
 class StatusBot(irc.bot.SingleServerIRCBot):
     log = logging.getLogger("statusbot.bot")
 
-    def __init__(self, channels, nicks, publishers,
+    def __init__(self, channels, nicks, publishers, successlog,
                  nickname, password, server, port=6667):
         if port == 6697:
             factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
@@ -222,6 +257,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         self.topics = {}
         self.current_topic = None
         self.publishers = publishers
+        self.successlog = successlog
 
     def on_nicknameinuse(self, c, e):
         self.log.debug("Nickname in use, releasing")
@@ -258,6 +294,11 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         nick = e.source.split('!')[0]
         auth = e.arguments[0][0]
         msg = e.arguments[0][1:]
+        # Unprivileged commands
+        if msg.startswith('#success'):
+            self.handle_success_command(e.target, nick, msg)
+            return
+        # Privileged commands
         if not msg.startswith('#status'):
             return
         if auth != '+':
@@ -271,6 +312,13 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             self.handle_status_command(e.target, nick, msg)
         except:
             self.log.exception("Exception handling command %s" % msg)
+
+    def handle_success_command(self, channel, nick, msg):
+        parts = msg.split()
+        text = ' '.join(parts[1:])
+        self.log.info("Processing success from %s: %s" % (nick, text))
+        self.successlog.log(channel, nick, text)
+        self.send(channel, "%s: Added success to Success page" % (nick,))
 
     def handle_status_command(self, channel, nick, msg):
         parts = msg.split()
@@ -352,7 +400,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
 
 
 def _main(configpath):
-    config = ConfigParser.ConfigParser()
+    config = ConfigParser.RawConfigParser()
     config.read(configpath)
     setup_logging(config)
 
@@ -362,8 +410,9 @@ def _main(configpath):
              config.get('ircbot', 'nicks').split(',')]
     publishers = [StatusPage(config),
                   AlertFile(config)]
+    successlog = SuccessPage(config)
 
-    bot = StatusBot(channels, nicks, publishers,
+    bot = StatusBot(channels, nicks, publishers, successlog,
                     config.get('ircbot', 'nick'),
                     config.get('ircbot', 'pass'),
                     config.get('ircbot', 'server'),
