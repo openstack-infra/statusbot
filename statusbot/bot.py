@@ -310,7 +310,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
             return
         try:
             self.handle_status_command(e.target, nick, msg)
-        except:
+        except Exception:
             self.log.exception("Exception handling command %s" % msg)
 
     def handle_success_command(self, channel, nick, msg):
