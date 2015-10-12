@@ -52,13 +52,11 @@ import ssl
 import urllib
 
 try:
-    import daemon.pidlockfile
-    pid_file_module = daemon.pidlockfile
-except:
+    import daemon.pidlockfile as pid_file_module
+except ImportError:
     # as of python-daemon 1.6 it doesn't bundle pidlockfile anymore
     # instead it depends on lockfile-0.9.1
-    import daemon.pidfile
-    pid_file_module = daemon.pidfile
+    import daemon.pidfile as pid_file_module
 
 
 # https://bitbucket.org/jaraco/irc/issue/34/
