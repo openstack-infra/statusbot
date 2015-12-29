@@ -37,7 +37,7 @@ setuptools.setup(
     author_email='openstack-infra@lists.openstack.org',
     description="Client library for OpenStack Nova API.",
     license="Apache License, Version 2.0",
-    url="https://github.com/openstack-infra/statusbot",
+    url="https://git.openstack.org/cgit/openstack-infra/statusbot",
     packages=setuptools.find_packages(exclude=['tests', 'tests.*']),
     include_package_data=True,
     setup_requires=['setuptools_git>=0.4'],
