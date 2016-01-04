@@ -191,7 +191,10 @@ class Tweet(UpdateInterface):
         pass
 
     def ok(self, msg=None):
-        self.update("Everything back to normal")
+        if msg:
+            self.update(msg)
+        else:
+            self.update("Everything back to normal")
 
 
 class StatusPage(WikiPage, UpdateInterface):
