@@ -1,3 +1,5 @@
+six>=1.7.0
+
 simplemediawiki
 irc
 python-daemon
