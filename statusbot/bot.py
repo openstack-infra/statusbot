@@ -165,7 +165,7 @@ class Tweet(UpdateInterface):
         self.api = twitter.Api(
             consumer_key=self.consumer_key,
             consumer_secret=self.consumer_secret,
-            access_token_key=self.access_token,
+            access_token_key=self.access_token_key,
             access_token_secret=self.access_token_secret)
 
     def update(self, msg):
