@@ -31,6 +31,7 @@ password=password
 url=https://wiki.example.com/w/api.php
 pageid=1781
 successpageid=2434
+thankspageid=37700
 
 [irclogs]
 url=http://eavesdrop.example.com/irclogs/%(chan)s/%(chan)s.%(date)s.log.html
@@ -116,6 +117,36 @@ class SuccessPage(WikiPage):
         super(SuccessPage, self).__init__(config)
         if config.has_option('wiki', 'successpageid'):
             self.pageid = config.get('wiki', 'successpageid')
+        else:
+            self.pageid = None
+        if config.has_option('irclogs', 'url'):
+            self.irclogs_url = config.get('irclogs', 'url')
+        else:
+            self.irclogs_url = None
+
+    def log(self, channel, nick, msg):
+        if self.pageid:
+            self.login()
+            ts = self.timestamp()
+            if self.irclogs_url:
+                url = self.irclogs_url % {
+                    'chan': urllib.quote(channel),
+                    'date': ts[0:10]}
+                onchan = "[%s %s]" % (url, channel)
+            else:
+                onchan = channel
+            data = self.load()
+            current = data.split("\n")
+            newtext = "%s\n|-\n| %s || %s (on %s) || %s\n%s" % (
+                current[0], ts, nick, onchan, msg, '\n'.join(current[1:]))
+            self.save(newtext)
+
+
+class ThanksPage(WikiPage):
+    def __init__(self, config):
+        super(ThanksPage, self).__init__(config)
+        if config.has_option('wiki', 'thankspageid'):
+            self.pageid = config.get('wiki', 'thankspageid')
         else:
             self.pageid = None
         if config.has_option('irclogs', 'url'):
@@ -283,7 +314,7 @@ class AlertFile(UpdateInterface):
 class StatusBot(irc.bot.SingleServerIRCBot):
     log = logging.getLogger("statusbot.bot")
 
-    def __init__(self, channels, nicks, publishers, successlog,
+    def __init__(self, channels, nicks, publishers, successlog, thankslog,
                  nickname, password, server, port=6667):
         if port == 6697:
             factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
@@ -304,6 +335,7 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         self.current_topic = None
         self.publishers = publishers
         self.successlog = successlog
+        self.thankslog = thankslog
 
     def on_nicknameinuse(self, c, e):
         self.log.debug("Nickname in use, releasing")
@@ -344,6 +376,9 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         if msg.startswith('#success'):
             self.handle_success_command(e.target, nick, msg)
             return
+        if msg.startswith('#thanks'):
+            self.handle_thanks_command(e.target, nick, msg)
+            return
         # Privileged commands
         if not msg.startswith('#status'):
             return
@@ -365,6 +400,13 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         self.log.info("Processing success from %s: %s" % (nick, text))
         self.successlog.log(channel, nick, text)
         self.send(channel, "%s: Added success to Success page" % (nick,))
+
+    def handle_thanks_command(self, channel, nick, msg):
+        parts = msg.split()
+        text = ' '.join(parts[1:])
+        self.log.info("Processing thanks from %s: %s" % (nick, text))
+        self.thankslog.log(channel, nick, text)
+        self.send(channel, "%s: Added thanks to Thanks page" % (nick,))
 
     def handle_status_command(self, channel, nick, msg):
         parts = msg.split()
@@ -457,10 +499,11 @@ def _main(configpath):
     publishers = [StatusPage(config),
                   AlertFile(config)]
     successlog = SuccessPage(config)
+    thankslog = ThanksPage(config)
     if config.has_section('twitter'):
         publishers.append(Tweet(config))
 
-    bot = StatusBot(channels, nicks, publishers, successlog,
+    bot = StatusBot(channels, nicks, publishers, successlog, thankslog,
                     config.get('ircbot', 'nick'),
                     config.get('ircbot', 'pass'),
                     config.get('ircbot', 'server'),
