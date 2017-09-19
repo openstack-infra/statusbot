@@ -56,7 +56,6 @@ import simplemediawiki
 import datetime
 import re
 import ssl
-import textwrap
 import twitter
 import urllib
 
@@ -200,15 +199,7 @@ class Tweet(UpdateInterface):
             access_token_secret=self.access_token_secret)
 
     def update(self, msg):
-        # Limit tweets to 120 characters to facilitate retweets
-        tweets = textwrap.wrap(msg, 120)
-        if len(tweets) == 1:
-            # Don't prefix statuses that fit
-            self.api.PostUpdate(tweets[0])
-        else:
-            for index in range(0, len(tweets)):
-                self.api.PostUpdate("{index}/{tweet}".format(
-                    index=index, tweet=tweets[index]))
+        self.api.PostUpdates(msg, continuation='\u2026')
 
     def alert(self, msg=None):
         self.update(msg)
