@@ -31,7 +31,9 @@ password=password
 url=https://wiki.example.com/w/api.php
 pageid=1781
 successpageid=2434
+successpageurl=https://wiki.example.com/w/Success
 thankspageid=37700
+thankspageurl=https://wiki.example.com/w/Thanks
 
 [irclogs]
 url=http://eavesdrop.example.com/irclogs/%(chan)s/%(chan)s.%(date)s.log.html
@@ -118,6 +120,10 @@ class SuccessPage(WikiPage):
             self.pageid = config.get('wiki', 'successpageid')
         else:
             self.pageid = None
+        if config.has_option('wiki', 'successpageurl'):
+            self.pageurl = config.get('wiki', 'successpageurl')
+        else:
+            self.pageurl = None
         if config.has_option('irclogs', 'url'):
             self.irclogs_url = config.get('irclogs', 'url')
         else:
@@ -148,6 +154,10 @@ class ThanksPage(WikiPage):
             self.pageid = config.get('wiki', 'thankspageid')
         else:
             self.pageid = None
+        if config.has_option('wiki', 'thankspageurl'):
+            self.pageurl = config.get('wiki', 'thankspageurl')
+        else:
+            self.pageurl = None
         if config.has_option('irclogs', 'url'):
             self.irclogs_url = config.get('irclogs', 'url')
         else:
@@ -390,14 +400,18 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         text = ' '.join(parts[1:])
         self.log.info("Processing success from %s: %s" % (nick, text))
         self.successlog.log(channel, nick, text)
-        self.send(channel, "%s: Added success to Success page" % (nick,))
+        self.send(channel, "%s: Added success to Success page "
+                           "(%s)"
+                           % (nick, self.successlog.pageurl))
 
     def handle_thanks_command(self, channel, nick, msg):
         parts = msg.split()
         text = ' '.join(parts[1:])
         self.log.info("Processing thanks from %s: %s" % (nick, text))
         self.thankslog.log(channel, nick, text)
-        self.send(channel, "%s: Added thanks to Thanks page" % (nick,))
+        self.send(channel, "%s: Added your thanks to Thanks page "
+                           "(%s)"
+                           % (nick, self.thankslog.pageurl))
 
     def handle_status_command(self, channel, nick, msg):
         parts = msg.split()
