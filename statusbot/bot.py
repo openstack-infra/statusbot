@@ -199,7 +199,7 @@ class Tweet(UpdateInterface):
             access_token_secret=self.access_token_secret)
 
     def update(self, msg):
-        self.api.PostUpdates(msg, continuation='\u2026')
+        self.api.PostUpdates(msg, continuation=u'\u2026')
 
     def alert(self, msg=None):
         self.update(msg)
