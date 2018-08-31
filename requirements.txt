@@ -5,3 +5,4 @@ irc
 python-daemon
 kitchen
 python-twitter>=3.4
+ib3

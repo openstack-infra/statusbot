@@ -21,7 +21,7 @@
 nick=NICKNAME
 pass=PASSWORD
 server=irc.freenode.net
-port=6667
+port=6697
 channels=foo,bar
 nicks=alice,bob
 
@@ -48,6 +48,8 @@ access_token_secret=access_token_secret
 import argparse
 import ConfigParser
 import daemon
+from ib3.auth import SASL
+from ib3.connection import SSL
 import irc.bot
 import json
 import logging.config
@@ -57,7 +59,6 @@ import time
 import simplemediawiki
 import datetime
 import re
-import ssl
 import twitter
 import urllib
 
@@ -312,21 +313,17 @@ class AlertFile(UpdateInterface):
         self.write(None)
 
 
-class StatusBot(irc.bot.SingleServerIRCBot):
+class StatusBot(SASL, SSL, irc.bot.SingleServerIRCBot):
     log = logging.getLogger("statusbot.bot")
 
     def __init__(self, channels, nicks, publishers, successlog, thankslog,
-                 nickname, password, server, port=6667):
-        if port == 6697:
-            factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
-            irc.bot.SingleServerIRCBot.__init__(self,
-                                                [(server, port)],
-                                                nickname, nickname,
-                                                connect_factory=factory)
-        else:
-            irc.bot.SingleServerIRCBot.__init__(self,
-                                                [(server, port)],
-                                                nickname, nickname)
+                 nickname, password, server, port=6697):
+        super(StatusBot, self).__init__(
+            server_list=[(server, port)],
+            nickname=nickname,
+            realname=nickname,
+            ident_password=password,
+            channels=channels)
         self.channel_list = channels
         self.nicks = nicks
         self.nickname = nickname
@@ -338,26 +335,11 @@ class StatusBot(irc.bot.SingleServerIRCBot):
         self.successlog = successlog
         self.thankslog = thankslog
 
-    def on_nicknameinuse(self, c, e):
-        self.log.debug("Nickname in use, releasing")
-        c.nick(c.get_nickname() + "_")
-        c.privmsg("nickserv", "identify %s " % self.password)
-        c.privmsg("nickserv", "ghost %s %s" % (self.nickname, self.password))
-        c.privmsg("nickserv", "release %s %s" % (self.nickname, self.password))
-        time.sleep(ANTI_FLOOD_SLEEP)
-        c.nick(self.nickname)
-
     def on_welcome(self, c, e):
         self.identify_msg_cap = False
         self.log.debug("Requesting identify-msg capability")
         c.cap('REQ', 'identify-msg')
         c.cap('END')
-        self.log.debug("Identifying to nickserv")
-        c.privmsg("nickserv", "identify %s " % self.password)
-        for channel in self.channel_list:
-            self.log.info("Joining %s" % channel)
-            c.join(channel)
-            time.sleep(ANTI_FLOOD_SLEEP)
 
     def on_cap(self, c, e):
         self.log.debug("Received cap response %s" % repr(e.arguments))
