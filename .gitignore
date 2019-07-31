@@ -1,6 +1,0 @@
-.tox
-build/*
-*.pyc
-*.egg*
-AUTHORS
-ChangeLog

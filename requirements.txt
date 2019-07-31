@@ -1,8 +1,0 @@
-six>=1.7.0
-
-simplemediawiki
-irc
-python-daemon
-kitchen
-python-twitter>=3.4
-ib3
